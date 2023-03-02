@@ -17,6 +17,8 @@ bool simulationStarted = false;
 int simulationSteps = 27;
 int simulationCurrentStep = 0;
 int simulationHourIndex = 0;
+float maxSlowdown = 10;
+float maxMomentumForScalingSlowdown = 121.5;
 
 float prescaledSimValues[] = {1, 3, 5, 3, 8, 1, 2,3, 
                       5, 8,1, 3, 4,2,1, 3, 
@@ -31,6 +33,8 @@ float withMeetingsSimValues[] = {0, 5.75, 10.5, 0, 0, 0, 0, 2.75,
                       15.5, 20.5, 15.5, 25.5, 0, 0, 0, 0, 
                       2.75, 5.75, 0, 0, 0, 0, 2.75, 15.5,
                       20.5, 35.5, 25.5};
+
+char *hourLabels[10] = {"--", "8am", "9am", "10am", "11am", "12pm", "1pm", "2pm", "3pm", "4pm"};
 
 /** Servo configuration settings */
 
@@ -84,10 +88,15 @@ void startSimulationIfNotStarted() {
 /** reset the simulation back to it's initial state */
 void stopSimulation() {
   Serial.println("stopping simulation");
-  simulationStarted = false;
+  doUpdateStatusDisplayForFinishedSimulation(simulationSelected);
+
   simulationCurrentStep = 0;
   simulationHourIndex = 0;
+
+  doUpdateLightStrip(simulationHourIndex);
   resetWorkerArms();
+
+  simulationStarted = false;
 }
 
 /** Run a single iteration of our simulation for a 20 min interval mapped to 1 second of time */
@@ -96,9 +105,12 @@ void runSimulationStep() {
    if (simulationCurrentStep < simulationSteps) {
 
      simulationHourIndex = ((int) simulationCurrentStep / 3) + 1;
-     int momentumValue = getMomentumValueForSelectedSimulation(simulationCurrentStep);
+     float momentumValue = getMomentumValueForSelectedSimulation(simulationSelected, simulationCurrentStep);
+     float slowdownFactor = translateMomentumToSlowdownFactor(momentumValue);
      displaySimulationStepDetails(simulationHourIndex, momentumValue);
-     doOneSecondOfWork(momentumValue);
+     doOneSecondOfWork(slowdownFactor);
+     doUpdateLightStrip(simulationHourIndex);
+     doUpdateStatusDisplayForRunningSimulation(simulationHourIndex, momentumValue);
   
      simulationCurrentStep++;     
    } else {
@@ -106,13 +118,55 @@ void runSimulationStep() {
    }
 }
 
+/** Update the light position showing on the strip, 0 index is no lights, 1 index is the first light */
+void doUpdateLightStrip(int hourIndex) {
+  //TODO fill this in to update the actual lights
+  Serial.print("updating the light strip to position ");
+  Serial.println(hourIndex);
+}
+
+/** Update the summary display with relevant text information showing the current momentum status */
+void doUpdateStatusDisplayForRunningSimulation(int hourIndex, float momentumValue) {
+  //TODO fill this in to update the actual display
+  Serial.print("updating the summary display with momentum ");
+  Serial.print(momentumValue);
+  Serial.print(" at time ");
+  Serial.println(hourLabels[hourIndex]);
+}
+
+/** Update the summary display once the simulation is complete to show final stats of avg/max momentum for the run */
+void doUpdateStatusDisplayForFinishedSimulation(int simType) {
+
+  //get the avg and max for the dataset.. lets just do this inline for simplicity
+  float sumMomentum = 0;
+  float maxMomentum = 0;
+  float avgMomentum = 0;
+
+  for (int i = 0; i < simulationSteps; i++) {
+    float momentum = getMomentumValueForSelectedSimulation(simType, i);
+    if (momentum > maxMomentum) {
+      maxMomentum = momentum;
+    }
+    sumMomentum += momentum;
+  }
+  avgMomentum = sumMomentum / simulationSteps;
+
+  //TODO make this update the actual display
+  Serial.print("updating the summary display with max momentum ");
+  Serial.print(maxMomentum);
+  Serial.print(" and avg momentum ");
+  Serial.println(avgMomentum);
+
+}
+
+
 /** Get the momentum value for where we are in the simulation, for the selected dataset */
-float getMomentumValueForSelectedSimulation(int currentStepIndex) {
-  if (simulationSelected == NO_MEETINGS_SIM) {
+float getMomentumValueForSelectedSimulation(int simType, int currentStepIndex) {
+  if (simType == NO_MEETINGS_SIM) {
     return noMeetingsSimValues[currentStepIndex];
-  } else if (simulationSelected == WITH_MEETINGS_SIM) {
+  } else if (simType == WITH_MEETINGS_SIM) {
     return withMeetingsSimValues[currentStepIndex];
-  } else if (simulationSelected == PRESCALED_SIM) {
+  } else if (simType == PRESCALED_SIM) {
     return prescaledSimValues[currentStepIndex];
   }
 
@@ -126,6 +180,21 @@ void displaySimulationStepDetails(int hourIndex, float momentumValue) {
     Serial.println(momentumValue);
 }
 
+/** Translate our momentum value which increases speed with bigger numbers into an inverted slowdown factor
+which goes slower with bigger numbers and also has a normalized scale, 1 being the fastest, 10 being the slowest */
+float translateMomentumToSlowdownFactor(float inputMomentum) {
+
+  if (simulationSelected == PRESCALED_SIM || inputMomentum == 0) {
+    return inputMomentum;
+  } else {
+    float percentMomentum = invLerp(0, maxMomentumForScalingSlowdown, inputMomentum);
+    float slowDownFactor = lerp(1, maxSlowdown, 1 - percentMomentum);
+
+    return slowDownFactor;
+  }
+
+}
+
 /** Reset the position of our servo back to our neutral aligned pose */
 void resetWorkerArms() {
   workerArmServo.write(NEUTRAL_POSITION); 
@@ -133,11 +202,17 @@ void resetWorkerArms() {
 
 /** Move the servo position oscillating left and right continuing from the 
 current position and adjusting the speed according to the slowdown input factor */
-void doOneSecondOfWork(int slowdownFactor) {
+void doOneSecondOfWork(float slowdownFactor) {
   int totalDelaySoFar = 0;
   int minPosition = NEUTRAL_POSITION - ARC_SIZE;
   int maxPosition = NEUTRAL_POSITION + ARC_SIZE;
   int delayAmount = (int) 100 / (ARC_SIZE/ARC_STEP) * slowdownFactor;
+
+  //handle special case of slowdown == 0, do nothing for 1 second
+  if (slowdownFactor == 0) {
+    delay(1000);
+    return;
+  }
 
   while (totalDelaySoFar < 1000) {
     if (direction > 0) {
@@ -173,7 +248,7 @@ void fastestWorkerArms() {
 }
 
 /** Move the worker arms a single oscillation at different speeds, used for testing */
-void slowStepWorkerArms(int slowdownFactor) {
+void slowStepWorkerArms(float slowdownFactor) {
   int minPosition = NEUTRAL_POSITION - ARC_SIZE;
   int maxPosition = NEUTRAL_POSITION + ARC_SIZE;
   int delayAmount = (int) 100 / (ARC_SIZE/ARC_STEP) * slowdownFactor;
@@ -188,6 +263,16 @@ void slowStepWorkerArms(int slowdownFactor) {
     workerArmServo.write(currentPosition); 
     delay(delayAmount);    
   }
+}
+
+/** linear interpolation */
+float lerp(float start, float end, float percent) {
+  return start + percent * (end - start);
+}
+
+/** inverse linear interpolation to get the percent */
+float invLerp(float start, float end, float value) {
+  return (value - start) / (end - start);
 }
 
 
