@@ -111,7 +111,7 @@ void stopSimulation() {
 
   simulationStarted = false;
 
-  delay(10000);
+  delay(5000);
 }
 
 /** Run a single iteration of our simulation for a 20 min interval mapped to 1 second of time */
