@@ -12,7 +12,7 @@ const int PRESCALED_SIM = 3;
 
 /** Simulation configuration settings */
 
-int simulationSelected = PRESCALED_SIM;
+int simulationSelected = NO_MEETINGS_SIM;
 bool simulationStarted = false;
 int simulationSteps = 27;
 int simulationCurrentStep = 0;
@@ -40,7 +40,7 @@ char *hourLabels[10] = {"--", "8am", "9am", "10am", "11am", "12pm", "1pm", "2pm"
 
 Servo workerArmServo; 
 
-const int NEUTRAL_POSITION = 69;
+const int NEUTRAL_POSITION = 45;
 const int ARC_SIZE = 30;
 const int ARC_STEP = 2;
 
@@ -63,8 +63,10 @@ void setup() {
 
 /** Main loop runs forever */
 void loop() {  
+
   buttonState = digitalRead(BUTTON_PIN);
   if (buttonState == HIGH) {
+    
     startSimulationIfNotStarted();
   }
 
@@ -78,6 +80,7 @@ void loop() {
 void startSimulationIfNotStarted() {
   if (!simulationStarted && simulationSelected != 0) {
     simulationStarted = true;
+    resetWorkerArms();
     Serial.println("starting simulation");
   }
   if (!simulationStarted && simulationSelected == 0) {
@@ -94,7 +97,6 @@ void stopSimulation() {
   simulationHourIndex = 0;
 
   doUpdateLightStrip(simulationHourIndex);
-  resetWorkerArms();
 
   simulationStarted = false;
 }
