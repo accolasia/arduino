@@ -1,5 +1,10 @@
 
 #include <Servo.h>
+#include <LiquidCrystal.h>
+
+// initialize the arduino pin configuration for the lcd display
+const int rs = 1, en = 2, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 /** Pin configuration */
 const int BUTTON_PIN = 6;
@@ -58,16 +63,22 @@ void setup() {
   workerArmServo.attach(SERVO_PIN);
 
   resetWorkerArms();
-  Serial.begin(9600);
+
+  lcd.begin(16, 2);
+  lcd.print("     Press");
+  lcd.setCursor(0, 1);
+  lcd.print("Start Simulation");
+
+  //serial print isn't compatible with the lcd writing, enable only when we need debugging
+  //Serial.begin(9600); 
 }
 
 /** Main loop runs forever */
 void loop() {  
 
-  buttonState = digitalRead(BUTTON_PIN);
+  //buttonState = digitalRead(BUTTON_PIN);
   if (buttonState == HIGH) {
-    
-    startSimulationIfNotStarted();
+     startSimulationIfNotStarted();
   }
 
   if (simulationStarted) {
@@ -99,6 +110,8 @@ void stopSimulation() {
   doUpdateLightStrip(simulationHourIndex);
 
   simulationStarted = false;
+
+  delay(10000);
 }
 
 /** Run a single iteration of our simulation for a 20 min interval mapped to 1 second of time */
@@ -134,6 +147,14 @@ void doUpdateStatusDisplayForRunningSimulation(int hourIndex, float momentumValu
   Serial.print(momentumValue);
   Serial.print(" at time ");
   Serial.println(hourLabels[hourIndex]);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Hour: ");
+  lcd.print(hourLabels[hourIndex]);
+  lcd.setCursor(0, 1);
+  lcd.print("Momentum: ");
+  lcd.print((int)momentumValue);
 }
 
 /** Update the summary display once the simulation is complete to show final stats of avg/max momentum for the run */
@@ -158,6 +179,16 @@ void doUpdateStatusDisplayForFinishedSimulation(int simType) {
   Serial.print(maxMomentum);
   Serial.print(" and avg momentum ");
   Serial.println(avgMomentum);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Avg: ");
+  lcd.print((int)avgMomentum);
+  lcd.print(" Max: ");
+  lcd.print((int)maxMomentum);
+  lcd.setCursor(0, 1);
+  lcd.print("Total: ");
+  lcd.print((int)sumMomentum);
 
 }
 
