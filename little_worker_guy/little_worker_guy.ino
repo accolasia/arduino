@@ -36,6 +36,7 @@ int simulationHourIndex = 0;
 float maxSlowdown = 10;
 float maxMomentumForScalingSlowdown = 121.5;
 
+
 float prescaledSimValues[] = {1, 3, 5, 3, 8, 1, 2,3, 
                       5, 8,1, 3, 4,2,1, 3, 
                       4, 1, 5, 2,8, 4, 2, 3,
@@ -59,6 +60,7 @@ Servo workerArmServo;
 const int NEUTRAL_POSITION = 45;
 const int ARC_SIZE = 30;
 const int ARC_STEP = 2;
+const int MILLIS_FOR_ONE_INCREMENT_OF_WORK = 2000;
 
 int currentPosition = NEUTRAL_POSITION;
 int direction = 1;
@@ -141,7 +143,7 @@ void runSimulationStep() {
      doUpdateLightStrip(simulationHourIndex);
      doUpdateStatusDisplayForRunningSimulation(simulationHourIndex, momentumValue);
     
-     doOneSecondOfWork(slowdownFactor);
+     doOneIncrementOfWork(slowdownFactor);
     
      simulationCurrentStep++;     
    } else {
@@ -267,7 +269,7 @@ void resetWorkerArms() {
 
 /** Move the servo position oscillating left and right continuing from the 
 current position and adjusting the speed according to the slowdown input factor */
-void doOneSecondOfWork(float slowdownFactor) {
+void doOneIncrementOfWork(float slowdownFactor) {
   int totalDelaySoFar = 0;
   int minPosition = NEUTRAL_POSITION - ARC_SIZE;
   int maxPosition = NEUTRAL_POSITION + ARC_SIZE;
@@ -275,11 +277,11 @@ void doOneSecondOfWork(float slowdownFactor) {
 
   //handle special case of slowdown == 0, do nothing for 1 second
   if (slowdownFactor == 0) {
-    delay(2000);
+    delay(MILLIS_FOR_ONE_INCREMENT_OF_WORK);
     return;
   }
  
-  while (totalDelaySoFar < 2000) {
+  while (totalDelaySoFar < MILLIS_FOR_ONE_INCREMENT_OF_WORK) {
     if (direction > 0) {
       if( currentPosition < maxPosition) {
         currentPosition += ARC_STEP;
