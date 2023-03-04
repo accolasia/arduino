@@ -275,11 +275,11 @@ void doOneSecondOfWork(float slowdownFactor) {
 
   //handle special case of slowdown == 0, do nothing for 1 second
   if (slowdownFactor == 0) {
-    delay(1000);
+    delay(2000);
     return;
   }
-
-  while (totalDelaySoFar < 1000) {
+ 
+  while (totalDelaySoFar < 2000) {
     if (direction > 0) {
       if( currentPosition < maxPosition) {
         currentPosition += ARC_STEP;
