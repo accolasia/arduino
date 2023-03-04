@@ -1,14 +1,25 @@
 
 #include <Servo.h>
 #include <LiquidCrystal.h>
+#include <FastLED.h>
 
 // initialize the arduino pin configuration for the lcd display
 const int rs = 1, en = 2, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 /** Pin configuration */
-const int BUTTON_PIN = 6;
+const int BUTTON_PIN = 9;
 const int SERVO_PIN = 3;
+
+/** LED strip configuration */
+#define LED_PIN     10
+#define NUM_LEDS    10
+#define BRIGHTNESS  100
+#define LED_TYPE    WS2811
+#define COLOR_ORDER GRB
+#define UPDATES_PER_SECOND 100
+
+CRGB leds[NUM_LEDS];
 
 /** 3 options for our simulation selection type */
 const int NO_MEETINGS_SIM = 1;
@@ -64,6 +75,11 @@ void setup() {
 
   resetWorkerArms();
 
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.clear();
+  
+
   lcd.begin(16, 2);
   lcd.print("     Press");
   lcd.setCursor(0, 1);
@@ -76,7 +92,7 @@ void setup() {
 /** Main loop runs forever */
 void loop() {  
 
-  //buttonState = digitalRead(BUTTON_PIN);
+  buttonState = digitalRead(BUTTON_PIN);
   if (buttonState == HIGH) {
      startSimulationIfNotStarted();
   }
@@ -91,7 +107,6 @@ void loop() {
 void startSimulationIfNotStarted() {
   if (!simulationStarted && simulationSelected != 0) {
     simulationStarted = true;
-    resetWorkerArms();
     Serial.println("starting simulation");
   }
   if (!simulationStarted && simulationSelected == 0) {
@@ -108,7 +123,7 @@ void stopSimulation() {
   simulationHourIndex = 0;
 
   doUpdateLightStrip(simulationHourIndex);
-
+  resetWorkerArms();
   simulationStarted = false;
 
   delay(5000);
@@ -123,10 +138,11 @@ void runSimulationStep() {
      float momentumValue = getMomentumValueForSelectedSimulation(simulationSelected, simulationCurrentStep);
      float slowdownFactor = translateMomentumToSlowdownFactor(momentumValue);
      displaySimulationStepDetails(simulationHourIndex, momentumValue);
-     doOneSecondOfWork(slowdownFactor);
      doUpdateLightStrip(simulationHourIndex);
      doUpdateStatusDisplayForRunningSimulation(simulationHourIndex, momentumValue);
-  
+    
+     doOneSecondOfWork(slowdownFactor);
+    
      simulationCurrentStep++;     
    } else {
      stopSimulation();
@@ -138,6 +154,22 @@ void doUpdateLightStrip(int hourIndex) {
   //TODO fill this in to update the actual lights
   Serial.print("updating the light strip to position ");
   Serial.println(hourIndex);
+
+  int adjustedHour = hourIndex + 1;
+  resetLEDStripLightsToZeroBrightness();
+  if (hourIndex > 0) {
+    leds[adjustedHour - 1] = CRGB(220,30,220);
+    FastLED.setBrightness(BRIGHTNESS);
+  }
+  FastLED.show();
+}
+
+/** Turn all the lights off on the LED strip */
+void resetLEDStripLightsToZeroBrightness() {
+  for(int i=0; i < NUM_LEDS; i++) {
+    leds[i] = CRGB(0,0,0);
+    FastLED.setBrightness(0);
+  }
 }
 
 /** Update the summary display with relevant text information showing the current momentum status */
