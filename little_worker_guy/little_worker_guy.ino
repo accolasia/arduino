@@ -8,7 +8,9 @@ const int rs = 1, en = 2, d4 = 4, d5 = 5, d6 = 6, d7 = 7;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 /** Pin configuration */
-const int BUTTON_PIN = 9;
+const int START_SIMULATION_BUTTON_PIN = 9;
+const int SIM_WITH_MEETINGS_BUTTON_PIN = 11;
+const int SIM_NO_MEETINGS_BUTTON_PIN = 12;
 const int SERVO_PIN = 3;
 
 /** LED strip configuration */
@@ -67,12 +69,17 @@ int direction = 1;
 
 /** Button state pressed or not */
 
-int buttonState = 0;
+int startSimButtonState = 0;
+int simWithMeetingsButtonState = 0;
+int simNoMeetingsButtonState = 0;
 
 /* Setup our pin configuration and initialize everything */
 void setup() {
 
-  pinMode(BUTTON_PIN, INPUT);
+  pinMode(START_SIMULATION_BUTTON_PIN, INPUT);
+  pinMode(SIM_WITH_MEETINGS_BUTTON_PIN, INPUT);
+  pinMode(SIM_NO_MEETINGS_BUTTON_PIN, INPUT);
+
   workerArmServo.attach(SERVO_PIN);
 
   resetWorkerArms();
@@ -94,9 +101,12 @@ void setup() {
 /** Main loop runs forever */
 void loop() {  
 
-  buttonState = digitalRead(BUTTON_PIN);
-  if (buttonState == HIGH) {
-     startSimulationIfNotStarted();
+  startSimButtonState = digitalRead(START_SIMULATION_BUTTON_PIN);
+  simWithMeetingsButtonState = digitalRead(SIM_WITH_MEETINGS_BUTTON_PIN);
+  simNoMeetingsButtonState = digitalRead(SIM_NO_MEETINGS_BUTTON_PIN);
+
+  if (startSimButtonState == HIGH) {
+     startSimulationIfNotStarted(simWithMeetingsButtonState, simNoMeetingsButtonState);
   }
 
   if (simulationStarted) {
@@ -106,13 +116,26 @@ void loop() {
 }
 
 /** Start the simulation specified in the selected simulation when the button is pressed */
-void startSimulationIfNotStarted() {
-  if (!simulationStarted && simulationSelected != 0) {
-    simulationStarted = true;
-    Serial.println("starting simulation");
-  }
-  if (!simulationStarted && simulationSelected == 0) {
-    Serial.println("Please select a simulation and try again");
+void startSimulationIfNotStarted(int simWithMeetingsButtonState, int simNoMeetingsButtonState) {
+  if (!simulationStarted) {
+      if (simWithMeetingsButtonState == HIGH) {
+        simulationSelected = WITH_MEETINGS_SIM;
+      } else if (simNoMeetingsButtonState == HIGH) {
+        simulationSelected = NO_MEETINGS_SIM;
+      } else {
+        simulationSelected = 0;
+      }
+      if (simulationSelected != 0) {
+        simulationStarted = true;
+        Serial.println("starting simulation");
+      } else {
+        Serial.println("Please select a simulation and try again");
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Please put");
+        lcd.setCursor(0, 1);
+        lcd.print("chart in slot");
+      }
   }
 }
 
@@ -275,7 +298,7 @@ void doOneIncrementOfWork(float slowdownFactor) {
   int maxPosition = NEUTRAL_POSITION + ARC_SIZE;
   int delayAmount = (int) 100 / (ARC_SIZE/ARC_STEP) * slowdownFactor;
 
-  //handle special case of slowdown == 0, do nothing for 1 second
+  //handle special case of slowdown == 0, do nothing for 1 increment
   if (slowdownFactor == 0) {
     delay(MILLIS_FOR_ONE_INCREMENT_OF_WORK);
     return;
